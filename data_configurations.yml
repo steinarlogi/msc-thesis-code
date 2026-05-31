@@ -1,0 +1,48 @@
+dataParams:
+  - n_genes: 100
+    n_reps: 3
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 0.01
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 0.001
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 0.0001
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 1
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 10
+
+  - n_genes: 100
+    n_reps: 10
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 20
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 30
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 40
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 50
+    snr: 0.1
+
+  - n_genes: 100
+    n_reps: 60
+    snr: 0.1

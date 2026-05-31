@@ -1,0 +1,7 @@
+hyperparameter_optimization/data/dataset*
+hyperparameter_optimization/RDB/study*
+compare_methods/data/dataset*
+compare_methods/results/plots/*.png
+compare_methods/results/raw_data/*.npy
+__pycache__
+hyperparameter_optimization/hyp_opt_runs/study*
