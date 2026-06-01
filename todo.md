@@ -1,0 +1,1 @@
+Eins og er er utils á pathinu á vélinni sem ég er að vinna í. Þarf að færa það inní pakkann hér svo þetta sé self-contained mappa.

@@ -12,7 +12,7 @@ for setting in data_settings['dataParams']:
     n_reps = setting['n_reps']
     snr = setting['snr']
 
-    hyp_opt_script_path = os.path.join(os.path.dirname(__file__), '../hyperparameter_optimization/model1.py')
+    hyp_opt_script_path = os.path.join(os.path.dirname(__file__), '../hyperparameter_optimization/model2.py')
 
     print (f'Running hyper parameter optimization for setting: n_genes: {n_genes}, n_reps: {n_reps}, snr: {snr}')
 
@@ -30,7 +30,7 @@ for setting in data_settings['dataParams']:
         print (e)
         print ('failed to run script hyperparameter search')
 
-    compare_methods_script_path = os.path.join(os.path.dirname(__file__), '../compare_methods/model1.py')
+    compare_methods_script_path = os.path.join(os.path.dirname(__file__), '../compare_methods/model2.py')
 
     print (f'Running compare methods for setting: n_genes: {n_genes}, n_reps: {n_reps}, snr: {snr}')
 

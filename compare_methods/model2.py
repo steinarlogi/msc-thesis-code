@@ -7,7 +7,7 @@ import numpy as np
 from grn_inference_msc.vae_model.data import Dataset
 from benchmark import stats_pipeline
 from basic_algorithms import zscore, least_squares
-from grn_inference_msc.vae_model.vae_model import ModelConfig, Model
+from grn_inference_msc.vae_model.vae_model import ConditionalModelConfig, ConditionalModel
 from grn_inference_msc.vae_model.constants import ProbabilityDistributions
 import torch
 from grn_inference_msc.vae_model.loss import VAEGaussianLikelihoodLoss
@@ -31,7 +31,7 @@ args = parser.parse_args()
 
 # Næst þarf ég að fá inn bestu parametrana sem eru vistaðir í gagnagrunninn undir hyp_opt_studiesRDB
 # Nafnið á rétta grunninum er fundið með stillingunum á gögnunum
-study_name = f'study_hyp_opt_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
+study_name = f'study_hyp_opt_model2_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
 database_path = os.path.join(os.path.dirname(__file__), '../hyperparameter_optimization/RDB', f'{study_name}.db')
 
 database_conn = sqlite3.connect(database_path)
@@ -104,7 +104,8 @@ for i in tqdm.tqdm(range(50), desc='Comparing methods'):
     zscore_AUPRs.append(zscore_AUPR)
 
     # Now the training loop for the model
-    model_config = ModelConfig(
+    model_config = ConditionalModelConfig(
+        dim_condition=args.n_genes*args.n_reps,
         n_genes=args.n_genes,
         dim_in=args.n_genes * args.n_reps,
         grn_layer_type=grn_layer_type,
@@ -114,14 +115,14 @@ for i in tqdm.tqdm(range(50), desc='Comparing methods'):
         decoder_hidden_dimensions=decoder_hidden_dimensions,
         device=device
     )
-    model = Model(model_config)
+    model = ConditionalModel(model_config)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = VAEGaussianLikelihoodLoss(alpha, beta)
 
     for e in range(n_epochs):
         optimizer.zero_grad()
 
-        mu, mu_latent, logvar_latent = model(X.to(device))
+        mu, mu_latent, logvar_latent = model(X.to(device), P.to(device))
         loss = criterion(X.to(device), mu, mu_latent, logvar_latent, model.get_A())
         loss.backward()
 
@@ -140,26 +141,21 @@ for i in tqdm.tqdm(range(50), desc='Comparing methods'):
 plt.title('AUROC comparison between methods')
 plt.boxplot([ls_AUROCs, zscore_AUROCs, autoencoder_AUROCs], labels=['Least squares', 'zscore', 'Autoencoder'])
 plt.hlines(0.5, xmin=plt.gca().get_xlim()[0], xmax=plt.gca().get_xlim()[1], linestyles='dotted', colors='blue')
-plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'plots', f'box_comp_methods_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
+plt.savefig(os.path.join(os.path.dirname(__file__), 'results_model2', 'plots', f'box_comp_methods_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
 
 plt.cla()
 
 # Plot boxplot to compare AUPRs
 plt.title('AUPR comparison between methods')
 plt.boxplot([ls_AUPRs, zscore_AUPRs, autoencoder_AUPRs], labels=['Least squares', 'zscore', 'Autoencoder'])
-plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'plots', f'box_comp_methods_AUPR_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
+plt.savefig(os.path.join(os.path.dirname(__file__), 'results_model2', 'plots', f'box_comp_methods_AUPR_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
 
 plt.cla()
 
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'autoencoder_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUROCs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'ls_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUROCs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'zscore_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'autoencoder_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'ls_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'zscore_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUROCs)
 
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'autoencoder_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUPRs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'ls_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUPRs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'zscore_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUPRs)
-
-
-
-
-
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'autoencoder_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUPRs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'ls_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUPRs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model2', 'raw_data', f'zscore_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUPRs)

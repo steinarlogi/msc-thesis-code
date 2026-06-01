@@ -1,11 +1,7 @@
 dataParams:
   - n_genes: 100
     n_reps: 3
-    snr: 0.1
-
-  - n_genes: 100
-    n_reps: 3
-    snr: 0.01
+    snr: 0.0001
 
   - n_genes: 100
     n_reps: 3
@@ -13,7 +9,11 @@ dataParams:
 
   - n_genes: 100
     n_reps: 3
-    snr: 0.0001
+    snr: 0.01
+
+  - n_genes: 100
+    n_reps: 3
+    snr: 0.1
 
   - n_genes: 100
     n_reps: 3

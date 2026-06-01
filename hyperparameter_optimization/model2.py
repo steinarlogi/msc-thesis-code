@@ -6,7 +6,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from benchmark import stats_pipeline
 import optuna
-from grn_inference_msc.vae_model.vae_model import Model, ModelConfig
+from grn_inference_msc.vae_model.vae_model import ConditionalModel, ConditionalModelConfig
 from grn_inference_msc.vae_model.constants import ProbabilityDistributions
 from grn_inference_msc.vae_model.loss import VAEGaussianLikelihoodLoss
 import numpy as np
@@ -36,7 +36,7 @@ if not os.path.exists(dataset_full_path):
 dataset = Dataset(dataset_full_path)
 
 # Naming the study so it can easily be seen which dataset is being used
-study_name = f'study_hyp_opt_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
+study_name = f'study_hyp_opt_model2_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
 storage_name = f'sqlite:///{os.path.dirname(__file__)}/RDB/{study_name}.db'
 
 
@@ -74,7 +74,8 @@ def objective(trial: optuna.Trial):
     beta = trial.suggest_float('beta', 0.0001, 10, log=True)
     alpha = trial.suggest_float('alpha', 0.0001, 10, log=True)
 
-    config = ModelConfig(
+    config = ConditionalModelConfig(
+        dim_condition=args.n_genes*args.n_reps,
         n_genes=args.n_genes,
         dim_in=args.n_genes*args.n_reps,
         dim_latent=dim_latent,
@@ -84,7 +85,7 @@ def objective(trial: optuna.Trial):
         decoder_hidden_dimensions=decoder_hidden_dimensions,
         device=device
     )
-    model = Model(config)
+    model = ConditionalModel(config)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = VAEGaussianLikelihoodLoss(alpha, beta)
@@ -100,7 +101,7 @@ def objective(trial: optuna.Trial):
         X = torch.log(1 + X)# use log1p to stabilize variance
 
         try:
-            mu, mu_latent, logvar_latent = model(X.to(device))
+            mu, mu_latent, logvar_latent = model(X.to(device), P.to(device))
         except:
             raise RuntimeError()
 

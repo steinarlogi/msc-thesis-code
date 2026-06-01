@@ -9,8 +9,9 @@ from benchmark import stats_pipeline
 from basic_algorithms import zscore, least_squares
 from grn_inference_msc.vae_model.vae_model import ModelConfig, Model
 from grn_inference_msc.vae_model.constants import ProbabilityDistributions
+from grn_inference_msc.zscore_variant.inference import get_A_1
 import torch
-from grn_inference_msc.vae_model.loss import VAEGaussianLikelihoodLoss
+from grn_inference_msc.vae_model.loss import BetaVAELoss
 import matplotlib.pyplot as plt
 import tqdm
 
@@ -31,7 +32,7 @@ args = parser.parse_args()
 
 # Næst þarf ég að fá inn bestu parametrana sem eru vistaðir í gagnagrunninn undir hyp_opt_studiesRDB
 # Nafnið á rétta grunninum er fundið með stillingunum á gögnunum
-study_name = f'study_hyp_opt_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
+study_name = f'study_hyp_opt_model3_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
 database_path = os.path.join(os.path.dirname(__file__), '../hyperparameter_optimization/RDB', f'{study_name}.db')
 
 database_conn = sqlite3.connect(database_path)
@@ -39,30 +40,23 @@ cur = database_conn.cursor()
 
 res = cur.execute('select param_name, param_value from trial_params where trial_id = (select trial_id from trial_values where value >= (select max(value) from trial_values) limit 1)')
 param_dict = {r[0]: r[1] for r in res.fetchall()}
-# Get the epoch vale:
-res = cur.execute('SELECT value_json FROM trial_user_attributes WHERE trial_id=(select trial_id from trial_values where value >= (select max(value) from trial_values) limit 1)')
-epoch = res.fetchone()[0]
 
 # Mappings for the values that are categorical in the hyp opt
 dim_latent_cat_mapping = [1, 2, 4, 8]
 hidden_dim_cat_mapping = [16, 32, 64, 128, 256]
 
 # Extract the best parameters
-alpha = float(param_dict['alpha'])
 beta = float(param_dict['beta'])
 dim_latent = dim_latent_cat_mapping[int(param_dict['dim_latent'])]
-grn_layer_type = 'before'
+grn_layer_type = 'none'
 hidden_dim = hidden_dim_cat_mapping[int(param_dict['hidden_dim'])]
 lr = float(param_dict['lr'])
 n_decoder_layers = 1
 n_encoder_layers = 1
 encoder_hidden_dimensions = [hidden_dim] * n_encoder_layers
 decoder_hidden_dimensions = [hidden_dim] * n_decoder_layers
-n_epochs = int(epoch)
+n_epochs = 1000
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-trial_number = cur.execute('select trials.number from trials join trial_values on trial_values.trial_id = trials.trial_id where value = (select max(value) from trial_values) limit 1').fetchall()
-trial_number = int(trial_number[0][0])
 
 # Close the database connection
 database_conn.close()
@@ -116,19 +110,19 @@ for i in tqdm.tqdm(range(50), desc='Comparing methods'):
     )
     model = Model(model_config)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = VAEGaussianLikelihoodLoss(alpha, beta)
+    criterion = BetaVAELoss(beta)
 
     for e in range(n_epochs):
         optimizer.zero_grad()
 
         mu, mu_latent, logvar_latent = model(X.to(device))
-        loss = criterion(X.to(device), mu, mu_latent, logvar_latent, model.get_A())
+        loss = criterion(X.to(device), mu, mu_latent, logvar_latent)
         loss.backward()
 
         optimizer.step()
 
-    autoencoder_solution = model.get_A()
-    autoencoder_AUPR, autoencoder_AUROC, autoencoder_stats = stats_pipeline(autoencoder_solution.detach().cpu().numpy(), true_adjacency)
+    autoencoder_solution = get_A_1(model, X, P, device=device)
+    autoencoder_AUPR, autoencoder_AUROC, autoencoder_stats = stats_pipeline(autoencoder_solution, true_adjacency)
 
     autoencoder_AUPRs.append(autoencoder_AUPR)
     autoencoder_AUROCs.append(autoencoder_AUROC)
@@ -140,26 +134,21 @@ for i in tqdm.tqdm(range(50), desc='Comparing methods'):
 plt.title('AUROC comparison between methods')
 plt.boxplot([ls_AUROCs, zscore_AUROCs, autoencoder_AUROCs], labels=['Least squares', 'zscore', 'Autoencoder'])
 plt.hlines(0.5, xmin=plt.gca().get_xlim()[0], xmax=plt.gca().get_xlim()[1], linestyles='dotted', colors='blue')
-plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'plots', f'box_comp_methods_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
+plt.savefig(os.path.join(os.path.dirname(__file__), 'results_model3', 'plots', f'box_comp_methods_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
 
 plt.cla()
 
 # Plot boxplot to compare AUPRs
 plt.title('AUPR comparison between methods')
 plt.boxplot([ls_AUPRs, zscore_AUPRs, autoencoder_AUPRs], labels=['Least squares', 'zscore', 'Autoencoder'])
-plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'plots', f'box_comp_methods_AUPR_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
+plt.savefig(os.path.join(os.path.dirname(__file__), 'results_model3', 'plots', f'box_comp_methods_AUPR_dataset_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}.png'))
 
 plt.cla()
 
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'autoencoder_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUROCs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'ls_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUROCs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'zscore_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'autoencoder_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'ls_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUROCs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'zscore_AUROCs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUROCs)
 
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'autoencoder_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUPRs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'ls_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUPRs)
-np.save(os.path.join(os.path.dirname(__file__), 'results', 'raw_data', f'zscore_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUPRs)
-
-
-
-
-
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'autoencoder_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), autoencoder_AUPRs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'ls_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), ls_AUPRs)
+np.save(os.path.join(os.path.dirname(__file__), 'results_model3', 'raw_data', f'zscore_AUPRs_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'), zscore_AUPRs)

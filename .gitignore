@@ -3,5 +3,9 @@ hyperparameter_optimization/RDB/study*
 compare_methods/data/dataset*
 compare_methods/results/plots/*.png
 compare_methods/results/raw_data/*.npy
+compare_methods/results_model2/plots/*.png
+compare_methods/results_model2/raw_data/*.npy
+compare_methods/results_model3/plots/*.png
+compare_methods/results_model3/raw_data/*.npy
 __pycache__
 hyperparameter_optimization/hyp_opt_runs/study*
