@@ -21,6 +21,19 @@ class Dataset:
         return self.Y, one_hot_encoded_P
 
 
+    def get_batch_normalized(self):
+        """A function that returns a tuple containing the gene expression data and
+        perturbation data like get_batch. The Gene expression data however is normalized using
+        log1p transformation and z-score normalization.
+        """
+        one_hot_encoded_P = torch.zeros_like(self.P)
+        one_hot_encoded_P[self.P != 0] = 1
+
+        Y_normalized = torch.log(1 + self.Y)
+
+        return Y_normalized, one_hot_encoded_P
+
+
     def __getitem__(self, i):
         return self.Y[i], self.P[i]
 

@@ -41,6 +41,9 @@ cur = database_conn.cursor()
 res = cur.execute('select param_name, param_value from trial_params where trial_id = (select trial_id from trial_values where value >= (select max(value) from trial_values) limit 1)')
 param_dict = {r[0]: r[1] for r in res.fetchall()}
 
+res = cur.execute('SELECT value_json FROM trial_user_attributes WHERE trial_id=(select trial_id from trial_values where value >= (select max(value) from trial_values) limit 1)')
+epoch = res.fetchone()[0]
+
 # Mappings for the values that are categorical in the hyp opt
 dim_latent_cat_mapping = [1, 2, 4, 8]
 hidden_dim_cat_mapping = [16, 32, 64, 128, 256]
@@ -55,7 +58,7 @@ n_decoder_layers = 1
 n_encoder_layers = 1
 encoder_hidden_dimensions = [hidden_dim] * n_encoder_layers
 decoder_hidden_dimensions = [hidden_dim] * n_decoder_layers
-n_epochs = 1000
+n_epochs = int(epoch)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # Close the database connection

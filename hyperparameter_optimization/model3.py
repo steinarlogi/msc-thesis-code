@@ -40,6 +40,11 @@ dataset = Dataset(dataset_full_path)
 study_name = f'study_hyp_opt_model3_{args.n_genes}g_{args.n_reps}r_SNR{float_to_unique_string(args.snr)}'
 storage_name = f'sqlite:///{os.path.dirname(__file__)}/RDB/{study_name}.db'
 
+# A function to add a list of scalars to the tensorboard
+def add_scalars(writer: SummaryWriter, tag, values, x_values):
+    for val, x in zip(values, x_values):
+        writer.add_scalar(tag, val, x)
+
 
 # the objective function to optimize
 def objective(trial: optuna.Trial):
@@ -84,6 +89,7 @@ def objective(trial: optuna.Trial):
     criterion = BetaVAELoss(beta)
 
     losses = []
+    AUROCs = []
 
     # Train the model
     for e in range(N_EPOCHS):
@@ -103,16 +109,25 @@ def objective(trial: optuna.Trial):
 
         optimizer.step()
 
-    # Calculate the A matrix
-    X, P = dataset.get_batch()
-    X = torch.log(1 + X) # Use log1p to stabilize variance
-    A = get_A_1(model, X, P, device)
-    # Calculate the stats
-    _, AUROC, _ = stats_pipeline(A, np.abs(np.sign(dataset.get_A().cpu().numpy())))
+        # Calculate the A matrix
+        A = get_A_1(model, X, P, device)
+        # Calculate the stats
+        _, AUROC, _ = stats_pipeline(A, np.abs(np.sign(dataset.get_A().cpu().numpy())))
+        AUROCs.append(AUROC)
+        writer.add_scalar('Metric/AUROC', AUROC, e)
+        writer.add_scalar('Losses/loss', loss.item(), e)
 
-    return AUROC
 
-N_EPOCHS = 1000 # Number of epochs to train the model for during the search
+    smoothed_AUROCs = np.convolve(AUROCs, np.ones(51)/51, mode='valid')
+    best_epoch = int(np.argmax(smoothed_AUROCs)) + 25 # Choose the best epoch as the one where the smoothed AUROC was maximized
+
+    trial.set_user_attr('best_epoch', best_epoch)
+    add_scalars(writer, 'Metric/AUROC_smoothed', smoothed_AUROCs, range(25, len(AUROCs) - 25))
+
+
+    return max(smoothed_AUROCs)
+
+N_EPOCHS = 500 # Number of epochs to train the model for during the search
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # Starting the hyperparameter search
